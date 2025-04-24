@@ -39,7 +39,13 @@ function CamScreen() {
 
   return (
     <div>
-      <video ref={videoRef} autoPlay={true} />
+      <video
+        ref={videoRef}
+        autoPlay={true}
+        muted
+        playsInline
+        style={{ width: "100%", border: "2px solid red" }}
+      />
     </div>
   );
 }

@@ -1,111 +1,190 @@
 "use client";
-import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
+import * as faceapi from "face-api.js";
+import QRCode from "qrcode.react";
+import jsQR from "jsqr";
 
-function CamScreen() {
+export default function FaceAndQrScanner() {
   const videoRef = useRef<HTMLVideoElement | null>(null);
-  const [mediaStream, setMediaStream] = useState<MediaStream | null>(null);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const [modelsLoaded, setModelsLoaded] = useState(false);
+  const [detectionInterval, setDetectionInterval] =
+    useState<NodeJS.Timeout | null>(null);
+  const [qrData, setQrData] = useState<string | null>(null);
+  const [scanning, setScanning] = useState(false);
 
+  // Load face-api.js models
   useEffect(() => {
-    const enableVideoStream = async () => {
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: true,
-        });
-        setMediaStream(stream);
-      } catch (error) {
-        console.error("Error accessing webcam", error);
-      }
+    const loadModels = async () => {
+      await Promise.all([
+        faceapi.nets.tinyFaceDetector.loadFromUri("/models"),
+        faceapi.nets.faceLandmark68Net.loadFromUri("/models"),
+        faceapi.nets.faceRecognitionNet.loadFromUri("/models"),
+        faceapi.nets.faceExpressionNet.loadFromUri("/models"),
+      ]);
+      setModelsLoaded(true);
     };
 
-    enableVideoStream();
+    loadModels();
+
+    return () => {
+      if (detectionInterval) clearInterval(detectionInterval);
+    };
   }, []);
 
-  useEffect(() => {
-    if (videoRef.current && mediaStream) {
-      videoRef.current.srcObject = mediaStream;
-    }
-  }, [videoRef, mediaStream]);
-
-  useEffect(() => {
-    return () => {
-      if (mediaStream) {
-        mediaStream.getTracks().forEach((track) => {
-          track.stop();
-        });
-      }
-    };
-  }, [mediaStream]);
-
-  return (
-    <div>
-      <video
-        ref={videoRef}
-        autoPlay={true}
-        muted
-        playsInline
-        style={{ width: "100%", border: "2px solid red" }}
-      />
-    </div>
-  );
-}
-function CameraComponent() {
-  const [imageSrc, setImageSrc] = useState<string | null>(null);
-
-  const handleCapture = async () => {
+  // Start camera and detection
+  const startDetection = async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: true,
-      });
-      const video = document.createElement("video");
-      video.srcObject = stream;
-      video.play();
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+      }
 
-      const canvas = document.createElement("canvas");
-      const context = canvas.getContext("2d");
+      // Start face detection
+      const interval = setInterval(async () => {
+        if (videoRef.current && canvasRef.current && modelsLoaded) {
+          const detections = await faceapi
+            .detectAllFaces(
+              videoRef.current,
+              new faceapi.TinyFaceDetectorOptions()
+            )
+            .withFaceLandmarks()
+            .withFaceExpressions();
 
-      video.addEventListener("loadeddata", () => {
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
-        context?.drawImage(video, 0, 0, canvas.width, canvas.height);
-        setImageSrc(canvas.toDataURL("image/png"));
-        stream.getTracks().forEach((track) => track.stop());
-      });
-    } catch (error) {
-      console.error("Error accessing camera:", error);
+          // Resize canvas to match video
+          const displaySize = {
+            width: videoRef.current.videoWidth,
+            height: videoRef.current.videoHeight,
+          };
+          faceapi.matchDimensions(canvasRef.current, displaySize);
+
+          // Draw detections
+          const resizedDetections = faceapi.resizeResults(
+            detections,
+            displaySize
+          );
+          faceapi.draw.drawDetections(canvasRef.current, resizedDetections);
+        }
+      }, 100);
+
+      setDetectionInterval(interval);
+      setScanning(true);
+    } catch (err) {
+      console.error("Error accessing camera:", err);
     }
   };
 
+  // Scan for QR codes
+  const scanQRCode = () => {
+    const interval = setInterval(() => {
+      if (videoRef.current && canvasRef.current) {
+        const canvas = canvasRef.current;
+        const video = videoRef.current;
+
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        const ctx = canvas.getContext("2d");
+        if (ctx) {
+          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        }
+
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const code = jsQR(imageData.data, imageData.width, imageData.height);
+
+        if (code) {
+          setQrData(code.data);
+          clearInterval(interval);
+          setScanning(false);
+        }
+      }
+    }, 500);
+  };
+
   return (
-    <div className="flex flex-col items-center gap-4">
-      <button
-        onClick={handleCapture}
-        className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
-      >
-        Capture Image
-      </button>
-      {imageSrc && (
+    <div className="scanner-container">
+      <h1>Face Detection & QR Code Scanner</h1>
+
+      <div className="video-container">
+        <video
+          ref={videoRef}
+          autoPlay
+          muted
+          playsInline
+          style={{ display: scanning ? "block" : "none" }}
+        />
+        <canvas
+          ref={canvasRef}
+          style={{ position: "absolute", top: 0, left: 0 }}
+        />
+      </div>
+
+      {!scanning && !qrData && (
+        <button onClick={startDetection}>Start Camera</button>
+      )}
+
+      {scanning && (
         <div>
-          <Image
-            src={imageSrc}
-            alt="Captured"
-            width={300}
-            height={300}
-            className="rounded"
-          />
+          <button onClick={scanQRCode}>Scan QR Code</button>
+          <button
+            onClick={() => {
+              if (detectionInterval) clearInterval(detectionInterval);
+              if (videoRef.current && videoRef.current.srcObject) {
+                (videoRef.current.srcObject as MediaStream)
+                  ?.getTracks()
+                  .forEach((track) => track.stop());
+              }
+              setScanning(false);
+            }}
+          >
+            Stop
+          </button>
         </div>
       )}
-    </div>
-  );
-}
 
-export default function Home() {
-  return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <CamScreen />
-        <CameraComponent />
-      </main>
+      {qrData && (
+        <div className="qr-result">
+          <h2>QR Code Detected:</h2>
+          <p>{qrData}</p>
+          <button onClick={() => setQrData(null)}>Scan Again</button>
+        </div>
+      )}
+
+      <style jsx>{`
+        .scanner-container {
+          max-width: 800px;
+          margin: 0 auto;
+          padding: 20px;
+          text-align: center;
+        }
+        .video-container {
+          position: relative;
+          width: 640px;
+          height: 480px;
+          margin: 20px auto;
+          border: 2px solid #333;
+        }
+        video,
+        canvas {
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+        }
+        button {
+          margin: 10px;
+          padding: 10px 20px;
+          background: #0070f3;
+          color: white;
+          border: none;
+          border-radius: 5px;
+          cursor: pointer;
+        }
+        .qr-result {
+          margin-top: 20px;
+          padding: 20px;
+          background: #f0f0f0;
+          border-radius: 5px;
+        }
+      `}</style>
     </div>
   );
 }

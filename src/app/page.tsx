@@ -1,7 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import * as faceapi from "face-api.js";
-import QRCode from "qrcode.react";
 import jsQR from "jsqr";
 
 export default function FaceAndQrScanner() {
@@ -88,13 +87,15 @@ export default function FaceAndQrScanner() {
           ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
         }
 
-        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-        const code = jsQR(imageData.data, imageData.width, imageData.height);
+        if (ctx) {
+          const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+          const code = jsQR(imageData.data, imageData.width, imageData.height);
 
-        if (code) {
-          setQrData(code.data);
-          clearInterval(interval);
-          setScanning(false);
+          if (code) {
+            setQrData(code.data);
+            clearInterval(interval);
+            setScanning(false);
+          }
         }
       }
     }, 500);

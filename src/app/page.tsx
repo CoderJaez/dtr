@@ -17,9 +17,7 @@ export default function FaceAndQrScanner() {
     const loadModels = async () => {
       await Promise.all([
         faceapi.nets.tinyFaceDetector.loadFromUri("/models"),
-        faceapi.nets.faceLandmark68Net.loadFromUri("/models"),
-        faceapi.nets.faceRecognitionNet.loadFromUri("/models"),
-        faceapi.nets.faceExpressionNet.loadFromUri("/models"),
+        // faceapi.nets.faceRecognitionNet.loadFromUri("/models"),
       ]);
       setModelsLoaded(true);
     };
@@ -30,6 +28,10 @@ export default function FaceAndQrScanner() {
       if (detectionInterval) clearInterval(detectionInterval);
     };
   }, []);
+
+  useEffect(() => {
+    startDetection();
+  }, [modelsLoaded]);
 
   // Start camera and detection
   const startDetection = async () => {
@@ -42,13 +44,10 @@ export default function FaceAndQrScanner() {
       // Start face detection
       const interval = setInterval(async () => {
         if (videoRef.current && canvasRef.current && modelsLoaded) {
-          const detections = await faceapi
-            .detectAllFaces(
-              videoRef.current,
-              new faceapi.TinyFaceDetectorOptions()
-            )
-            .withFaceLandmarks()
-            .withFaceExpressions();
+          const detections = await faceapi.detectAllFaces(
+            videoRef.current,
+            new faceapi.TinyFaceDetectorOptions()
+          );
 
           // Resize canvas to match video
           const displaySize = {
@@ -63,6 +62,40 @@ export default function FaceAndQrScanner() {
             displaySize
           );
           faceapi.draw.drawDetections(canvasRef.current, resizedDetections);
+          console.log("detections", detections);
+          if (detections.length == 1) {
+            const ctx = canvasRef.current.getContext("2d");
+            if (ctx && videoRef.current) {
+              ctx.drawImage(
+                videoRef.current,
+                0,
+                0,
+                displaySize.width,
+                displaySize.height
+              );
+              const imageData = ctx.getImageData(
+                0,
+                0,
+                displaySize.width,
+                displaySize.height
+              );
+              const code = jsQR(
+                imageData.data,
+                imageData.width,
+                imageData.height
+              );
+
+              if (code) {
+                setQrData(code.data);
+                clearInterval(interval);
+                if (videoRef.current && videoRef.current.srcObject) {
+                  (videoRef.current.srcObject as MediaStream)
+                    ?.getTracks()
+                    .forEach((track) => track.stop());
+                }
+              }
+            }
+          }
         }
       }, 100);
 
@@ -73,49 +106,23 @@ export default function FaceAndQrScanner() {
     }
   };
 
-  // Scan for QR codes
-  const scanQRCode = () => {
-    const interval = setInterval(() => {
-      if (videoRef.current && canvasRef.current) {
-        const canvas = canvasRef.current;
-        const video = videoRef.current;
-
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
-        const ctx = canvas.getContext("2d");
-        if (ctx) {
-          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-        }
-
-        if (ctx) {
-          const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-          const code = jsQR(imageData.data, imageData.width, imageData.height);
-
-          if (code) {
-            setQrData(code.data);
-            clearInterval(interval);
-            setScanning(false);
-          }
-        }
-      }
-    }, 500);
-  };
-
   return (
     <div className="scanner-container">
       <h1>Face Detection & QR Code Scanner</h1>
 
-      <div className="video-container">
+      <div className="relative w-full max-w-md mx-auto sm:max-w-lg md:max-w-xl lg:max-w-2xl">
         <video
           ref={videoRef}
           autoPlay
           muted
           playsInline
-          style={{ display: scanning ? "block" : "none" }}
+          className={`w-full h-auto ${scanning ? "block" : "hidden"}`}
         />
         <canvas
           ref={canvasRef}
-          style={{ position: "absolute", top: 0, left: 0 }}
+          className={`absolute top-0 left-0 w-full h-auto ${
+            scanning ? "block" : "hidden"
+          }`}
         />
       </div>
 
@@ -125,7 +132,6 @@ export default function FaceAndQrScanner() {
 
       {scanning && (
         <div>
-          <button onClick={scanQRCode}>Scan QR Code</button>
           <button
             onClick={() => {
               if (detectionInterval) clearInterval(detectionInterval);
@@ -145,8 +151,15 @@ export default function FaceAndQrScanner() {
       {qrData && (
         <div className="qr-result">
           <h2>QR Code Detected:</h2>
-          <p>{qrData}</p>
-          <button onClick={() => setQrData(null)}>Scan Again</button>
+          <p className="text-2xl text-red-500">{qrData}</p>
+          <button
+            onClick={() => {
+              setQrData(null);
+              startDetection();
+            }}
+          >
+            Scan Again
+          </button>
         </div>
       )}
 

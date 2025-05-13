@@ -1,7 +1,9 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { use, useEffect, useRef, useState } from "react";
 import * as faceapi from "face-api.js";
 import jsQR from "jsqr";
+import Header from "@/components/Header";
+import Swal from "sweetalert2";
 
 export default function FaceAndQrScanner() {
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -11,6 +13,49 @@ export default function FaceAndQrScanner() {
     useState<NodeJS.Timeout | null>(null);
   const [qrData, setQrData] = useState<string | null>(null);
   const [scanning, setScanning] = useState(false);
+
+  //For GPS Coordinates
+  const [coordinates, setCoordinates] = useState<{
+    latitude: number | null;
+    longitude: number | null;
+  }>({
+    latitude: null,
+    longitude: null,
+  });
+
+  // User Image
+  const [caputuredImage, setCapturedImage] = useState<FormData | null>(null);
+
+  const getLocation = () => {
+    if (!navigator.geolocation) {
+      Swal.fire({
+        icon: "error",
+        title: "Oops...",
+        text: "Geolocation is not supported by this browser.",
+      });
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setCoordinates({
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+        });
+      },
+      (error) => {
+        Swal.fire({
+          icon: "error",
+          title: "Oops...",
+          text: `Error getting location: ${error.message}`,
+        });
+      },
+      {
+        enableHighAccuracy: true,
+        maximumAge: 0,
+        timeout: 5000,
+      }
+    );
+  };
 
   // Load face-api.js models
   useEffect(() => {
@@ -32,6 +77,10 @@ export default function FaceAndQrScanner() {
   useEffect(() => {
     startDetection();
   }, [modelsLoaded]);
+
+  useEffect(() => {
+    getLocation();
+  }, []);
 
   // Start camera and detection
   const startDetection = async () => {
@@ -61,24 +110,23 @@ export default function FaceAndQrScanner() {
             detections,
             displaySize
           );
-          faceapi.draw.drawDetections(canvasRef.current, resizedDetections);
-          console.log("detections", detections);
-          if (detections.length == 1) {
-            const ctx = canvasRef.current.getContext("2d");
-            if (ctx && videoRef.current) {
-              ctx.drawImage(
-                videoRef.current,
-                0,
-                0,
-                displaySize.width,
-                displaySize.height
-              );
-              const imageData = ctx.getImageData(
-                0,
-                0,
-                displaySize.width,
-                displaySize.height
-              );
+          const ctx = canvasRef.current.getContext("2d");
+          if (ctx && videoRef.current) {
+            ctx.drawImage(
+              videoRef.current,
+              0,
+              0,
+              displaySize.width,
+              displaySize.height
+            );
+            const imageData = ctx.getImageData(
+              0,
+              0,
+              displaySize.width,
+              displaySize.height
+            );
+            faceapi.draw.drawDetections(canvasRef.current, resizedDetections);
+            if (detections.length == 1) {
               const code = jsQR(
                 imageData.data,
                 imageData.width,
@@ -88,6 +136,15 @@ export default function FaceAndQrScanner() {
               if (code) {
                 setQrData(code.data);
                 clearInterval(interval);
+
+                const imageUrl = canvasRef.current.toDataURL("image/png");
+                const blob = await (await fetch(imageUrl)).blob();
+                const formData = new FormData();
+                formData.append("image", blob, "captured-image.png");
+                setCapturedImage(formData);
+
+                console.log(blob);
+
                 if (videoRef.current && videoRef.current.srcObject) {
                   (videoRef.current.srcObject as MediaStream)
                     ?.getTracks()
@@ -106,99 +163,99 @@ export default function FaceAndQrScanner() {
     }
   };
 
+  const onSubmit = async () => {
+    if (qrData) {
+    }
+    const data = {
+      qrData,
+      coordinates,
+    };
+  };
+
   return (
-    <div className="scanner-container">
-      <h1>Face Detection & QR Code Scanner</h1>
+    <>
+      <Header />
+      <div className="scanner-container">
+        <h1>Face Detection & QR Code Scanner</h1>
 
-      <div className="relative w-full max-w-md mx-auto sm:max-w-lg md:max-w-xl lg:max-w-2xl">
-        <video
-          ref={videoRef}
-          autoPlay
-          muted
-          playsInline
-          className={`w-full h-auto ${scanning ? "block" : "hidden"}`}
-        />
-        <canvas
-          ref={canvasRef}
-          className={`absolute top-0 left-0 w-full h-auto ${
-            scanning ? "block" : "hidden"
-          }`}
-        />
+        <div className="relative w-full max-w-md mx-auto sm:max-w-lg md:max-w-xl lg:max-w-2xl">
+          <video
+            ref={videoRef}
+            autoPlay
+            muted
+            playsInline
+            className={`w-full h-30 ${scanning ? "block" : "hidden"}`}
+          />
+          <canvas
+            ref={canvasRef}
+            className={`absolute top-0 left-0 w-full h-30 ${
+              scanning ? "block" : "hidden"
+            }`}
+          />
+        </div>
+
+        {scanning && (
+          <div>
+            <button
+              className="m-2 px-8 py-2 rounded bg-blue-500 text-white cursor-pointer"
+              onClick={() => {
+                if (detectionInterval) clearInterval(detectionInterval);
+                if (videoRef.current && videoRef.current.srcObject) {
+                  (videoRef.current.srcObject as MediaStream)
+                    ?.getTracks()
+                    .forEach((track) => track.stop());
+                }
+                setScanning(false);
+                setQrData(null);
+                startDetection();
+              }}
+            >
+              Restart Camera
+            </button>
+          </div>
+        )}
+
+        {qrData && (
+          <div className="">
+            {/* <button
+              onClick={() => {
+                setQrData(null);
+                startDetection();
+              }}
+            >
+              Scan Again
+            </button> */}
+            <button className="m-8 px-8 py-2 rounded bg-blue-500 text-white cursor-pointer">
+              Time In
+            </button>
+            <button className="m-8 px-8 py-2 rounded bg-red-500 text-white cursor-pointer">
+              Time Out
+            </button>
+          </div>
+        )}
+
+        <style jsx>{`
+          .scanner-container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            text-align: center;
+          }
+          .video-container {
+            position: relative;
+            width: 640px;
+            height: 480px;
+            margin: 20px auto;
+            border: 2px solid #333;
+          }
+          video,
+          canvas {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+          }
+        `}</style>
       </div>
-
-      {!scanning && !qrData && (
-        <button onClick={startDetection}>Start Camera</button>
-      )}
-
-      {scanning && (
-        <div>
-          <button
-            onClick={() => {
-              if (detectionInterval) clearInterval(detectionInterval);
-              if (videoRef.current && videoRef.current.srcObject) {
-                (videoRef.current.srcObject as MediaStream)
-                  ?.getTracks()
-                  .forEach((track) => track.stop());
-              }
-              setScanning(false);
-            }}
-          >
-            Stop
-          </button>
-        </div>
-      )}
-
-      {qrData && (
-        <div className="qr-result">
-          <h2>QR Code Detected:</h2>
-          <p className="text-2xl text-red-500">{qrData}</p>
-          <button
-            onClick={() => {
-              setQrData(null);
-              startDetection();
-            }}
-          >
-            Scan Again
-          </button>
-        </div>
-      )}
-
-      <style jsx>{`
-        .scanner-container {
-          max-width: 800px;
-          margin: 0 auto;
-          padding: 20px;
-          text-align: center;
-        }
-        .video-container {
-          position: relative;
-          width: 640px;
-          height: 480px;
-          margin: 20px auto;
-          border: 2px solid #333;
-        }
-        video,
-        canvas {
-          width: 100%;
-          height: 100%;
-          object-fit: cover;
-        }
-        button {
-          margin: 10px;
-          padding: 10px 20px;
-          background: #0070f3;
-          color: white;
-          border: none;
-          border-radius: 5px;
-          cursor: pointer;
-        }
-        .qr-result {
-          margin-top: 20px;
-          padding: 20px;
-          background: #f0f0f0;
-          border-radius: 5px;
-        }
-      `}</style>
-    </div>
+    </>
   );
 }

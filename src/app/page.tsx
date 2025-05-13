@@ -225,6 +225,14 @@ export default function FaceAndQrScanner() {
             >
               Scan Again
             </button> */}
+            <p className="text-lg">
+              {coordinates.latitude && coordinates.longitude
+                ? `Coordinates: ${coordinates.latitude}, ${coordinates.longitude}`
+                : "Fetching coordinates..."}
+            </p>
+            <p className="text-lg">
+              {qrData ? `QR Code Data: ${qrData}` : "No QR code detected."}
+            </p>
             <button className="m-8 px-8 py-2 rounded bg-blue-500 text-white cursor-pointer">
               Time In
             </button>

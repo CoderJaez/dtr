@@ -24,7 +24,7 @@ export default function FaceAndQrScanner() {
   });
 
   // User Image
-  const [caputuredImage, setCapturedImage] = useState<FormData | null>(null);
+  // const [caputuredImage, setCapturedImage] = useState<FormData | null>(null);
 
   const getLocation = () => {
     if (!navigator.geolocation) {
@@ -137,13 +137,13 @@ export default function FaceAndQrScanner() {
                 setQrData(code.data);
                 clearInterval(interval);
 
-                const imageUrl = canvasRef.current.toDataURL("image/png");
-                const blob = await (await fetch(imageUrl)).blob();
-                const formData = new FormData();
-                formData.append("image", blob, "captured-image.png");
-                setCapturedImage(formData);
+                // const imageUrl = canvasRef.current.toDataURL("image/png");
+                // const blob = await (await fetch(imageUrl)).blob();
+                // const formData = new FormData();
+                // formData.append("image", blob, "captured-image.png");
+                // setCapturedImage(formData);
 
-                console.log(blob);
+                // console.log(blob);
 
                 if (videoRef.current && videoRef.current.srcObject) {
                   (videoRef.current.srcObject as MediaStream)
@@ -163,14 +163,14 @@ export default function FaceAndQrScanner() {
     }
   };
 
-  const onSubmit = async () => {
-    if (qrData) {
-    }
-    const data = {
-      qrData,
-      coordinates,
-    };
-  };
+  // const onSubmit = async () => {
+  //   if (qrData) {
+  //   }
+  //   const data = {
+  //     qrData,
+  //     coordinates,
+  //   };
+  // };
 
   return (
     <>

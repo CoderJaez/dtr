@@ -163,21 +163,65 @@ export default function FaceAndQrScanner() {
     }
   };
 
-  // const onSubmit = async () => {
-  //   if (qrData) {
-  //   }
-  //   const data = {
-  //     qrData,
-  //     coordinates,
-  //   };
-  // };
+  const onSubmit = async (type: number) => {
+    const formatDate = (date: Date) => {
+      const pad = (num: number) => (num < 10 ? `0${num}` : num);
+      return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(
+        date.getDate()
+      )} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(
+        date.getSeconds()
+      )}`;
+    };
+
+    const data = {
+      idnum: qrData,
+      logtime: formatDate(new Date()),
+      mylat: coordinates.latitude,
+      mylong: coordinates.longitude,
+      inoutx: type,
+    };
+
+    Swal.fire({
+      title: "Processing...",
+      text: "Please wait while we process your request.",
+      allowOutsideClick: false,
+      didOpen: async () => {
+        Swal.showLoading();
+
+        const response = await fetch("/api/logs", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(data),
+        });
+        if (!response.ok) {
+          Swal.close();
+          Swal.fire({
+            icon: "error",
+            title: "Oops...",
+            text: "Failed to log data.",
+          });
+        }
+        const result = await response.json();
+        if (result) {
+          Swal.close();
+          Swal.fire({
+            icon: "success",
+            title: "Success",
+            text: "Data logged successfully.",
+          });
+          setQrData(null);
+          startDetection();
+        }
+      },
+    });
+  };
 
   return (
     <>
       <Header />
       <div className="scanner-container">
-        <h1>Face Detection & QR Code Scanner</h1>
-
         <div className="relative w-full max-w-md mx-auto sm:max-w-lg md:max-w-xl lg:max-w-2xl">
           <video
             ref={videoRef}
@@ -216,27 +260,17 @@ export default function FaceAndQrScanner() {
         )}
 
         {qrData && (
-          <div className="">
-            {/* <button
-              onClick={() => {
-                setQrData(null);
-                startDetection();
-              }}
+          <div>
+            <button
+              className="m-4 px-8 py-2 rounded bg-blue-500 text-white cursor-pointer"
+              onClick={() => onSubmit(0)}
             >
-              Scan Again
-            </button> */}
-            <p className="text-lg">
-              {coordinates.latitude && coordinates.longitude
-                ? `Coordinates: ${coordinates.latitude}, ${coordinates.longitude}`
-                : "Fetching coordinates..."}
-            </p>
-            <p className="text-lg">
-              {qrData ? `QR Code Data: ${qrData}` : "No QR code detected."}
-            </p>
-            <button className="m-8 px-8 py-2 rounded bg-blue-500 text-white cursor-pointer">
               Time In
             </button>
-            <button className="m-8 px-8 py-2 rounded bg-red-500 text-white cursor-pointer">
+            <button
+              className="m-4 px-8 py-2 rounded bg-red-500 text-white cursor-pointer"
+              onClick={() => onSubmit(1)}
+            >
               Time Out
             </button>
           </div>

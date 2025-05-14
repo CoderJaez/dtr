@@ -14,12 +14,12 @@ const Header = () => {
         />
         <h1 className="text-xl font-bold">DILG 9 - DTR </h1>
         <nav className="space-x-4">
-          <a
+          {/* <a
             href="/calendar"
             className="hover:bg-yellow-500 transition-colors duration-300 px-3 py-2 rounded"
           >
             Calendar
-          </a>
+          </a> */}
         </nav>
       </div>
     </header>

@@ -4,23 +4,25 @@ import Image from "next/image";
 const Header = () => {
   return (
     <header className="bg-white text-gray-600 shadow-md">
-      <div className="container mx-auto flex items-center justify-between py-4 px-6">
-        <Image
-          src="/dilglogo.png"
-          alt="DILG Logo"
-          className=" mr-3"
-          width={70}
-          height={70}
-        />
-        <h1 className="text-xl font-bold">DILG 9 - DTR </h1>
-        <nav className="space-x-4">
-          {/* <a
+      <div className="flex items-center justify-between py-2 px-8 border-b-2 border-gray-600">
+        <h1 className="text-xl font-bold">DILG IX - DTR </h1>
+        {/* <nav className="space-x-4">
+          <a
             href="/calendar"
-            className="hover:bg-yellow-500 transition-colors duration-300 px-3 py-2 rounded"
+            className="hover:bg-[#FFDE15] transition-colors duration-300 px-3 py-2 rounded"
           >
             Calendar
-          </a> */}
-        </nav>
+          </a>
+        </nav> */}
+      </div>
+      <div className="flex items-center justify-center">
+        <Image
+          src="/dilg9-banner.jpg"
+          alt="Header Image"
+          className="object-cover py-2"
+          width={1000}
+          height={100}
+        />
       </div>
     </header>
   );

@@ -21,7 +21,6 @@ export async function POST(request: Request) {
                 httpsAgent: agent
             }
         );
-        console.log(response.data);
         if (response.status !== 200) {
             return NextResponse.json({ error: 'Failed to fetch data from external endpoint' }, { status: 500 });
         }
